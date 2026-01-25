@@ -185,9 +185,186 @@ exports.signup = async (req, res) => {
 
 //==============================================
 //Login logic
+//step1-> fetch email and password from req body
+//step2-> data validations
+//step3-> check if email exists in User collection
+//step4-> compare password with hashed password in DB
+//step5-> generate JWT token
+//step6-> create cookie
+//step7-> send response
 //==============================================
+exports.login = async (req, res) => {
+    try {
+        // Step 1: Fetch email and password from request body
+        const { email, password } = req.body;
+
+        // Step 2: Data validations
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and password are required"
+            });
+        }
+
+        // Validate email format (basic validation)
+        if (!email.includes('@') || !email.includes('.')) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid email format"
+            });
+        }
+
+        // Step 3: Check if email exists in User collection
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Email does not exist. Please signup first"
+            });
+        }
+
+        // Step 4: Compare password with hashed password in DB
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid password"
+            });
+        }
+
+        // Step 5: Generate JWT token
+        const token = require('jsonwebtoken').sign(
+            {
+                id: user._id,
+                email: user.email,
+                accountType: user.accountType
+            },
+            process.env.JWT_SECRET || 'your-secret-key',
+            {
+                expiresIn: '7d'
+            }
+        );
+
+        // Step 6: Create cookie
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        // Step 7: Send response
+        res.status(200).json({
+            success: true,
+            message: "Login successful",
+            token,
+            user: {
+                id: user._id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                accountType: user.accountType
+            }
+        });
+
+    } catch (error) {
+        console.error("Error in login:", error);
+        res.status(500).json({
+            success: false,
+            message: "Error during login",
+            error: error.message
+        });
+    }
+};
 
 
+
+
+
 //==============================================
-// Change Password
+// Change Password Logic
+//step1-> fetch userId, old password, new password, confirm password from req body
+//step2-> data validations
+//step3-> find user in database
+//step4-> compare old password with hashed password in DB
+//step5-> check if new password and confirm password are same
+//step6-> hash the new password
+//step7-> update password in database
+//step8-> send response
 //==============================================
+exports.changePassword = async (req, res) => {
+    try {
+        // Step 1: Fetch userId, old password, new password, confirm password from request body
+        const { userId, oldPassword, newPassword, confirmPassword } = req.body;
+
+        // Step 2: Data validations
+        if (!userId || !oldPassword || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "New password must be at least 6 characters long"
+            });
+        }
+
+        // Step 3: Find user in database
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Step 4: Compare old password with hashed password in DB
+        const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isOldPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: "Old password is incorrect"
+            });
+        }
+
+        // Step 5: Check if new password and confirm password are same
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New password and confirm password do not match"
+            });
+        }
+
+        // Check if old password and new password are same
+        if (oldPassword === newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New password cannot be the same as old password"
+            });
+        }
+
+        // Step 6: Hash the new password
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+        // Step 7: Update password in database
+        user.password = hashedNewPassword;
+        await user.save();
+
+        // Step 8: Send response
+        res.status(200).json({
+            success: true,
+            message: "Password changed successfully"
+        });
+
+    } catch (error) {
+        console.error("Error in changePassword:", error);
+        res.status(500).json({
+            success: false,
+            message: "Error changing password",
+            error: error.message
+        });
+    }
+};
