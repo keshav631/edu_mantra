@@ -6,8 +6,8 @@ const mailSender = require("../utils/mailSender")
 const mongoose = require("mongoose")
 const {
   courseEnrollmentEmail,
-} = require("../mail/templates/courseEnrollmentEmail")
-const { paymentSuccessEmail } = require("../mail/templates/paymentSuccessEmail")
+} = require("../mail/templates/CourseEnrollmentMail")
+const { paymentSuccessEmail } = require("../mail/templates/paymentSucessful")
 const CourseProgress = require("../models/CourseProgress")
 
 // Capture the payment and initiate the Razorpay order
